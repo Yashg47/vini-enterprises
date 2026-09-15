@@ -42,9 +42,42 @@ export default function Collections() {
         const data = await getProducts();
 
         setProducts(data);
-      } catch (err) {
+      } catch (err: unknown) {
         console.error("Failed to load products:", err);
-        setError("Unable to load products.");
+
+        // Show the real Supabase/runtime error so the Vercel deployment
+        // problem can be diagnosed instead of hiding the actual message.
+        let message = "Unknown error";
+
+        if (err instanceof Error) {
+          message = err.message;
+        } else if (err && typeof err === "object") {
+          const supabaseError = err as {
+            message?: string;
+            details?: string;
+            hint?: string;
+            code?: string;
+          };
+
+          const parts = [
+            supabaseError.message,
+            supabaseError.details,
+            supabaseError.hint,
+            supabaseError.code ? `Code: ${supabaseError.code}` : undefined,
+          ].filter(Boolean);
+
+          if (parts.length > 0) {
+            message = parts.join(" | ");
+          } else {
+            try {
+              message = JSON.stringify(err);
+            } catch {
+              message = "Unable to read the error details.";
+            }
+          }
+        }
+
+        setError(`Unable to load products: ${message}`);
       } finally {
         setLoading(false);
       }
