@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { supabase, supabaseConfig } from "./supabase";
 import type { Product } from "../data/products";
 
 interface SupabaseImage {
@@ -20,84 +20,148 @@ interface SupabaseProduct {
   id: string;
   name: string;
   slug: string;
+
   category: Product["category"];
   category_id: Product["categoryId"];
+
   subsection: Product["subsection"] | null;
+
   price: number | null;
   price_on_request: boolean;
+
   description: string | null;
   material: string | null;
   hallmark: string | null;
   gemstone: string | null;
   origin: string | null;
   weight_approx: string | null;
-  specifications: Array<{
-    label: string;
-    value: string;
-  }> | null;
+
+  specifications:
+    | Array<{
+        label: string;
+        value: string;
+      }>
+    | null;
+
   featured: boolean;
   availability: boolean;
+
   product_images: SupabaseImage[];
   product_options: SupabaseOption[];
 }
 
 export async function getProducts(): Promise<Product[]> {
-  const { data, error } = await supabase
-    .from("products")
-    .select(`
-      *,
-      product_images (
-        id,
-        image_url,
-        sort_order
-      ),
-      product_options (
-        id,
-        option_type,
-        option_label,
-        option_value,
-        available,
-        sort_order
-      )
-    `)
-    .order("created_at", { ascending: false });
+  console.log("Supabase configuration:", {
+    url: supabaseConfig.url,
+    hasPublishableKey: supabaseConfig.hasKey,
+  });
 
-  if (error) {
-    console.error("Error loading products:", error);
-    throw error;
+  if (!supabaseConfig.hasKey) {
+    throw new Error(
+      "Supabase publishable key is missing. Check Vercel Environment Variables."
+    );
   }
 
-  return (data as SupabaseProduct[]).map((product) => {
-    const images = [...(product.product_images || [])]
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .map((image) => image.image_url);
+  try {
+    const { data, error } = await supabase
+      .from("products")
+      .select(`
+        *,
+        product_images (
+          id,
+          image_url,
+          sort_order
+        ),
+        product_options (
+          id,
+          option_type,
+          option_label,
+          option_value,
+          available,
+          sort_order
+        )
+      `)
+      .order("created_at", { ascending: false });
 
-    return {
-      id: product.id,
-      slug: product.slug,
-      name: product.name,
-      category: product.category,
-      categoryId: product.category_id,
-      subsection: product.subsection || undefined,
+    if (error) {
+      console.error("Supabase database error:", error);
 
-      image: images[0] || "",
-      images,
+      throw new Error(
+        [
+          error.message,
+          error.details,
+          error.hint,
+          error.code ? `Code: ${error.code}` : "",
+        ]
+          .filter(Boolean)
+          .join(" | ")
+      );
+    }
 
-      hallmark: product.hallmark || "",
-      material: product.material || "",
-      gemstone: product.gemstone || "",
-      origin: product.origin || undefined,
-      weightApprox: product.weight_approx || undefined,
+    if (!data) {
+      throw new Error("Supabase returned no product data.");
+    }
 
-      description: product.description || "",
+    return (data as SupabaseProduct[]).map((product) => {
+      const images = [...(product.product_images || [])].sort(
+        (a, b) => a.sort_order - b.sort_order
+      );
 
-      specifications: Array.isArray(product.specifications)
-        ? product.specifications
-        : [],
+      const options = [...(product.product_options || [])].sort(
+        (a, b) => a.sort_order - b.sort_order
+      );
 
-      featured: product.featured,
-    };
-  });
+      return {
+        id: product.id,
+        slug: product.slug,
+        name: product.name,
+
+        category: product.category,
+        categoryId: product.category_id,
+
+        subsection: product.subsection ?? undefined,
+
+        image: images[0]?.image_url || "",
+        images: images.map((image) => image.image_url),
+
+        hallmark: product.hallmark || "",
+        material: product.material || "",
+        gemstone: product.gemstone || "",
+        origin: product.origin || "",
+
+        weightApprox: product.weight_approx || "",
+
+        description: product.description || "",
+
+        specifications:
+          product.specifications || [],
+
+        featured: product.featured,
+        availability: product.availability,
+
+        options: options.map((option) => ({
+          id: option.id,
+          type: option.option_type,
+          label: option.option_label || undefined,
+          value: option.option_value,
+          available: option.available,
+        })),
+
+        price: product.price ?? undefined,
+        priceOnRequest: product.price_on_request,
+      } as Product;
+    });
+  } catch (error) {
+    console.error("Failed to fetch products from Supabase:", error);
+
+    if (error instanceof TypeError && error.message === "Failed to fetch") {
+      throw new Error(
+        "Could not connect to Supabase. Check the Vercel Supabase URL, publishable key, or network connection."
+      );
+    }
+
+    throw error;
+  }
 }
 
 export async function getProductBySlug(
@@ -122,46 +186,72 @@ export async function getProductBySlug(
       )
     `)
     .eq("slug", slug)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    if (error.code === "PGRST116") {
-      return null;
-    }
-
     console.error("Error loading product:", error);
-    throw error;
+    throw new Error(
+      [
+        error.message,
+        error.details,
+        error.hint,
+        error.code ? `Code: ${error.code}` : "",
+      ]
+        .filter(Boolean)
+        .join(" | ")
+    );
+  }
+
+  if (!data) {
+    return null;
   }
 
   const product = data as SupabaseProduct;
 
-  const images = [...(product.product_images || [])]
-    .sort((a, b) => a.sort_order - b.sort_order)
-    .map((image) => image.image_url);
+  const images = [...(product.product_images || [])].sort(
+    (a, b) => a.sort_order - b.sort_order
+  );
+
+  const options = [...(product.product_options || [])].sort(
+    (a, b) => a.sort_order - b.sort_order
+  );
 
   return {
     id: product.id,
     slug: product.slug,
     name: product.name,
+
     category: product.category,
     categoryId: product.category_id,
-    subsection: product.subsection || undefined,
 
-    image: images[0] || "",
-    images,
+    subsection: product.subsection ?? undefined,
+
+    image: images[0]?.image_url || "",
+    images: images.map((image) => image.image_url),
 
     hallmark: product.hallmark || "",
     material: product.material || "",
     gemstone: product.gemstone || "",
-    origin: product.origin || undefined,
-    weightApprox: product.weight_approx || undefined,
+    origin: product.origin || "",
+
+    weightApprox: product.weight_approx || "",
 
     description: product.description || "",
 
-    specifications: Array.isArray(product.specifications)
-      ? product.specifications
-      : [],
+    specifications: product.specifications || [],
 
     featured: product.featured,
-  };
+    availability: product.availability,
+
+    options: options.map((option) => ({
+      id: option.id,
+      type: option.option_type,
+      label: option.option_label || undefined,
+      value: option.option_value,
+      available: option.available,
+    })),
+
+    price: product.price ?? undefined,
+    priceOnRequest: product.price_on_request,
+  } as Product;
 }
