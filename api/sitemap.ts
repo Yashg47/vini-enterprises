@@ -2,8 +2,16 @@ const SITE_URL = "https://vinienterprises.co.in";
 
 export async function GET() {
   try {
-    const supabaseUrl = process.env.VITE_SUPABASE_URL;
-    const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+   const env = (
+  globalThis as {
+    process?: {
+      env?: Record<string, string | undefined>;
+    };
+  }
+).process?.env ?? {};
+
+const supabaseUrl = env.VITE_SUPABASE_URL;
+const supabaseKey = env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
       return new Response("Supabase configuration missing", {
