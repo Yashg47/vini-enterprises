@@ -229,7 +229,7 @@ export default function ProductDetails() {
                   <img
                     src={displayImage}
                     alt={product.name}
-                    className="h-full w-full object-cover object-center transition-all duration-300"
+                    className="max-w-full max-h-full w-auto h-auto object-contain object-center"
                   />
                 ) : (
                   <div className="h-full w-full flex items-center justify-center text-stone-400">
@@ -265,7 +265,7 @@ export default function ProductDetails() {
                       <img
                         src={img}
                         alt={`${product.name} view ${idx + 1}`}
-                        className="w-full h-full object-cover object-center"
+                        className="w-full h-full object-contain object-center"
                       />
                     </button>
                   ))}
