@@ -335,7 +335,7 @@ export default function ProductDetails() {
               {/* Action Buttons */}
               <div className="mt-8 flex flex-col sm:flex-row gap-4">
                 <WhatsAppButton
-                  productName={product.name}
+                  product={product}
                   variant="gold"
                   size="lg"
                   className="w-full justify-center"

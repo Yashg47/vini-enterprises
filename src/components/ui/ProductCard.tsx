@@ -93,7 +93,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <WhatsAppButton
-              productName={product.name}
+              product={product}
               size="sm"
               variant="gold"
               className="w-full text-xs"
